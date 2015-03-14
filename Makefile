@@ -1,10 +1,11 @@
+LFLAGS = `sdl-config --libs` -lSDL
 default: chip8
 
 chip8.0: chip8.c
 	gcc -c -g chip8.c -o chip8.o
 
 chip8: chip8.0
-	gcc -g chip8.o -o chip8
+	gcc -g chip8.o -o chip8 $(LFLAGS)
 
 clean:
 	-rm -rf chip8

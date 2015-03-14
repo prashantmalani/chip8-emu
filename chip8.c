@@ -6,13 +6,14 @@
  */
 #include "debug.h"
 #include <fcntl.h>
+#include "SDL/SDL.h"
 
 /* Common address locations */
 #define FONTSET_BEGIN		0x50
 #define PROGRAM_BEGIN		0x200
 #define MAX_MEM			0x1000
-#define SCREEN_Y		64
-#define SCREEN_X		32
+#define SCREEN_X		64
+#define SCREEN_Y		32
 
 /* TODO: We should eventually shift this to the main function */
 int debug_level = LOG_INFO;
@@ -126,13 +127,101 @@ int loadProgram(char *filepath)
 	return 0;
 }
 
+void updateTimers()
+{
+		// Update timers
+		if (delay_timer > 0)
+			--delay_timer;
+
+		if (sound_timer > 0) {
+			if (sound_timer == 1)
+				LOGD("BEEPER SOUNDED!");
+			--sound_timer;
+		}
+}
+
+void dumpScreen()
+{
+	int x;
+		LOGD("\n");
+		for (x = 0; x < (SCREEN_X * SCREEN_Y); x++) {
+			LOGD("%u", (unsigned)gfx[x]);
+			if (!((x +1) % SCREEN_X))
+				LOGD("\n");
+		}
+}
+
+/* Handle the opcode and act accordingly.
+ * It is assumed that the pc modifications will occur here itself
+ */
+void handleOpcode(unsigned short opcode)
+{
+	unsigned x, y;
+	unsigned i, j, n;
+	char cur_pixel;
+	unsigned short tmp;
+	LOGD("Fetched opcode is %02x\n", opcode);
+	switch(opcode & 0xF000) {
+	case 0x6000:
+		// Case 6XNN: Sets VX to NN.
+		V[(opcode & 0xF00) >> 8] = opcode & 0xFF;
+		pc += 2;
+		break;
+
+	case 0xA000:
+		// Case ANNN: Set I to address NNN.
+		I = opcode & 0xFFF;
+		pc += 2;
+		break;
+
+	case 0xD000:
+		// Case DXYN: Draw the sprite at coordinate VX, VY, height N pixels
+		x = V[opcode & 0xF00 >> 8];
+		y = V[opcode & 0xF0 >> 4];
+		n = opcode & 0xF;
+		for (j = 0; j < n; j++) {
+			cur_pixel = mem[I + j];
+			for (i = 0; i < 8; i++) {
+				if (cur_pixel & (0x80 >> i)) {
+					if(gfx[((y + j) * SCREEN_X) + x + i])
+						V[0xF] = 1;
+					gfx[((y + j) * SCREEN_X) + x + i] ^= 1;
+				}
+			}
+		}
+
+		// TODO: Set a flag to draw something
+		pc += 2;
+		break;
+
+	case 0x7000:
+		// Case 7XNN: Add NN to VX
+		tmp = V[(opcode & 0xF00) >> 8];
+		V[(opcode & 0xF00) >> 8] += opcode & 0xFF;
+		if (V[(opcode & 0xF00) >> 8] < tmp)
+			V[0xF] = 1;
+		pc += 2;
+		break;
+
+	default:
+		LOGE("Unknown opcde %02x\n", opcode);
+		break;
+	}
+}
+
 void execute()
 {
 	for (;;) {
 		// Fetch opcode
 		opcode = mem[pc] << 8 | mem[pc + 1];
-		LOGD("Fetched opcode is %02x\n", opcode);
-		break;
+
+		handleOpcode(opcode);
+		updateTimers();
+
+		dumpScreen();
+		// TODO: Remove this once things are working.
+		// Press a key to move to the next cycle
+		getchar();
 	}
 }
 
@@ -144,7 +233,8 @@ int main(int argc, char **argv)
 	}
 	LOGI("Initializing hardware\n");
 	initialize();
-	loadProgram("./zero_demo.ch8");
+	if(loadProgram("./zero_demo.ch8"))
+		return -1;
 	execute();
 	return 0;
 }
