@@ -151,6 +151,75 @@ void dumpScreen()
 		}
 }
 
+void handle8case(unsigned short opcode)
+{
+	switch(opcode & 0xF) {
+	case 0x0:
+		V[(opcode & 0xF00) >> 8] = V[(opcode & 0xF0) >> 4];
+		pc += 2;
+		break;
+
+	case 0x1:
+		V[(opcode & 0xF00) >> 8] |= V[(opcode & 0xF0) >> 4];
+		pc += 2;
+		break;
+
+	case 0x2:
+		V[(opcode & 0xF00) >> 8] &= V[(opcode & 0xF0) >> 4];
+		pc += 2;
+		break;
+
+	case 0x3:
+		V[(opcode & 0xF00) >> 8] ^= V[(opcode & 0xF0) >> 4];
+		pc += 2;
+		break;
+
+	case 0x4:
+		if (V[(opcode & 0xF00) >> 8] + V[(opcode & 0xF0) >> 4] >
+		    0xFFFF)
+			V[0xF] = 1;
+		V[(opcode & 0xF00) >> 8] += V[(opcode & 0xF0) >> 4];
+		pc += 2;
+		break;
+
+	default:
+		LOGE("Unknown opcode %02x\n", opcode);
+		pc += 2;
+		break;
+	}
+}
+
+void handleFcase(unsigned short opcode)
+{
+	switch(opcode & 0xFF) {
+	case 0x07:
+		V[(opcode & 0xF00) >> 8] = delay_timer;
+		pc +=2;
+		break;
+
+	case 0x0A:
+		// TODO: Case 0xFX0A, a key press is awaited, and then stored in VX
+		break;
+
+	case 0x15:
+		// Case FX15, set delay timer to VX
+		delay_timer = V[(opcode & 0xF00) >> 8];
+		pc += 2;
+		break;
+
+	case 0x18:
+		// Case FX18, set sound timer to VX
+		sound_timer = V[(opcode & 0xF00) >> 8];
+		pc += 2;
+		break;
+
+	default:
+		LOGE("Unknown opcode %02x\n", opcode);
+		pc += 2;
+		break;
+	}
+}
+
 /* Handle the opcode and act accordingly.
  * It is assumed that the pc modifications will occur here itself
  */
@@ -176,8 +245,8 @@ void handleOpcode(unsigned short opcode)
 
 	case 0xD000:
 		// Case DXYN: Draw the sprite at coordinate VX, VY, height N pixels
-		x = V[opcode & 0xF00 >> 8];
-		y = V[opcode & 0xF0 >> 4];
+		x = V[(opcode & 0xF00) >> 8];
+		y = V[(opcode & 0xF0) >> 4];
 		n = opcode & 0xF;
 		for (j = 0; j < n; j++) {
 			cur_pixel = mem[I + j];
@@ -197,14 +266,33 @@ void handleOpcode(unsigned short opcode)
 	case 0x7000:
 		// Case 7XNN: Add NN to VX
 		tmp = V[(opcode & 0xF00) >> 8];
-		V[(opcode & 0xF00) >> 8] += opcode & 0xFF;
+		V[(opcode & 0xF00) >> 8] += (opcode & 0xFF);
 		if (V[(opcode & 0xF00) >> 8] < tmp)
 			V[0xF] = 1;
 		pc += 2;
 		break;
 
+	case 0xF000:
+		handleFcase(opcode);
+		break;
+
+	case 0x4000:
+		if (V[(opcode & 0xF00) >> 8] != (opcode & 0xFF))
+			pc +=2;
+		pc +=2;
+		break;
+
+	case 0x8000:
+		handle8case(opcode);
+		break;
+
+	case 0x1000:
+		pc = opcode & 0xFFF;
+		break;
+
 	default:
 		LOGE("Unknown opcde %02x\n", opcode);
+		pc += 2;
 		break;
 	}
 }
@@ -219,9 +307,8 @@ void execute()
 		updateTimers();
 
 		dumpScreen();
-		// TODO: Remove this once things are working.
-		// Press a key to move to the next cycle
-		getchar();
+		// TODO: Maybe think about spawning this off in another thread;
+		usleep(16 * 1000);
 	}
 }
 
