@@ -19,25 +19,25 @@
 int debug_level = LOG_INFO;
 
 /* Chip 8 hardware registers and machine state */
-unsigned short opcode;
-unsigned char mem[MAX_MEM];
+uint16_t opcode;
+uint8_t mem[MAX_MEM];
 
-unsigned char V[16];
-unsigned short I;
-unsigned short pc;
+uint8_t V[16];
+uint16_t I;
+uint16_t pc;
 
-unsigned char gfx[SCREEN_X * SCREEN_Y];
+uint32_t gfx[SCREEN_X * SCREEN_Y];
 
-unsigned char delay_timer;
-unsigned char sound_timer;
+uint8_t delay_timer;
+uint8_t sound_timer;
 
-unsigned short stack[16];
+uint16_t stack[16];
 /* Stack pointer points to the index of stack[] array */
-unsigned short sp;
-unsigned char key[16];
+uint16_t sp;
+uint8_t key[16];
 
 /* Chip 8 built in font set */
-unsigned char font_set[80] =
+uint8_t font_set[80] =
 {
 	0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
 	0x20, 0x60, 0x20, 0x20, 0x70, // 1
@@ -145,13 +145,14 @@ void dumpScreen()
 	int x;
 		LOGD("\n");
 		for (x = 0; x < (SCREEN_X * SCREEN_Y); x++) {
-			LOGD("%u", (unsigned)gfx[x]);
+			// Convert it into binary form so it's easier to view
+			LOGD("%u", gfx[x] ? 1 : 0);
 			if (!((x +1) % SCREEN_X))
 				LOGD("\n");
 		}
 }
 
-void handle8case(unsigned short opcode)
+void handle8case(uint16_t opcode)
 {
 	switch(opcode & 0xF) {
 	case 0x0:
@@ -189,7 +190,7 @@ void handle8case(unsigned short opcode)
 	}
 }
 
-void handleFcase(unsigned short opcode)
+void handleFcase(uint16_t opcode)
 {
 	switch(opcode & 0xFF) {
 	case 0x07:
@@ -223,12 +224,12 @@ void handleFcase(unsigned short opcode)
 /* Handle the opcode and act accordingly.
  * It is assumed that the pc modifications will occur here itself
  */
-void handleOpcode(unsigned short opcode)
+void handleOpcode(uint16_t opcode)
 {
 	unsigned x, y;
 	unsigned i, j, n;
-	char cur_pixel;
-	unsigned short tmp;
+	uint8_t cur_pixel;
+	uint16_t tmp;
 	LOGD("Fetched opcode is %02x\n", opcode);
 	switch(opcode & 0xF000) {
 	case 0x6000:
@@ -254,7 +255,7 @@ void handleOpcode(unsigned short opcode)
 				if (cur_pixel & (0x80 >> i)) {
 					if(gfx[((y + j) * SCREEN_X) + x + i])
 						V[0xF] = 1;
-					gfx[((y + j) * SCREEN_X) + x + i] ^= 1;
+					gfx[((y + j) * SCREEN_X) + x + i] ^= 0xFFFFFFFF;
 				}
 			}
 		}
