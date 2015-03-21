@@ -17,12 +17,13 @@
 #define SCREEN_X		64
 #define SCREEN_Y		32
 
-#define SDL 1
+#define SDL		1
 #define GFX_SCALE	32
 
-/* TODO: We should eventually shift this to the main function */
+/* TODO: We should eventually shift this to the main file */
 int debug_level = LOG_INFO;
 bool draw;
+bool quitProgram = false;
 
 /* Chip 8 hardware registers and machine state */
 uint16_t opcode;
@@ -40,6 +41,19 @@ uint8_t sound_timer;
 uint16_t stack[16];
 /* Stack pointer points to the index of stack[] array */
 uint16_t sp;
+
+/*
+ * Structure to hold key press information.
+ *
+ * The key mapping is as follows:
+ *
+ *      Chip 8         --->        Keyboard
+ *     1--2--3--C                 1--2--3--4
+ *     4--5--6--D                 Q--W--E--R
+ *     7--8--9--E                 A--S--D--F
+ *     A--0--B--F                 Z--X--C--V
+ *
+ */
 uint8_t key[16];
 
 /* SDL Surface */
@@ -67,7 +81,10 @@ uint8_t font_set[80] =
 	0xF0, 0x80, 0xF0, 0x80, 0x80  // F
 };
 
-/* Reset all the memory and register values */
+/*
+ * TODO(pmalani) : Add Documentation
+ * Reset all the memory and register values
+ */
 void initialize()
 {
 	int i;
@@ -101,6 +118,9 @@ void initialize()
 		mem[80 + i] = font_set[i];
 }
 
+/*
+ * TODO(pmalani) : Add Documentation
+ */
 int loadProgram(char *filepath)
 {
 	FILE *fp = NULL;
@@ -137,6 +157,9 @@ int loadProgram(char *filepath)
 	return 0;
 }
 
+/*
+ * TODO(pmalani) : Add Documentation
+ */
 void updateTimers()
 {
 		// Update timers
@@ -150,6 +173,9 @@ void updateTimers()
 		}
 }
 
+/*
+ * TODO(pmalani) : Add Documentation
+ */
 void dumpScreen()
 {
 	int x;
@@ -162,6 +188,9 @@ void dumpScreen()
 		}
 }
 
+/*
+ * TODO(pmalani) : Add Documentation
+ */
 void handle8case(uint16_t opcode)
 {
 	switch(opcode & 0xF) {
@@ -200,6 +229,9 @@ void handle8case(uint16_t opcode)
 	}
 }
 
+/*
+ * TODO(pmalani) : Add Documentation
+ */
 void handleFcase(uint16_t opcode)
 {
 	switch(opcode & 0xFF) {
@@ -231,7 +263,8 @@ void handleFcase(uint16_t opcode)
 	}
 }
 
-/* Handle the opcode and act accordingly.
+/*
+ * Handle the opcode and act accordingly.
  * It is assumed that the pc modifications will occur here itself
  */
 void handleOpcode(uint16_t opcode)
@@ -309,11 +342,133 @@ void handleOpcode(uint16_t opcode)
 	}
 }
 
-void execute()
+void updateKeyStruct(SDL_Event event, bool keyDown)
+{
+	uint8_t key_index;
+
+	switch (event.key.keysym.sym) {
+	case SDLK_1:
+		LOGD("1 Pressed\n");
+		key_index = 0x1;
+		break;
+	case SDLK_2:
+		LOGD("2 Pressed\n");
+		key_index = 0x2;
+		break;
+	case SDLK_3:
+		LOGD("3 Pressed\n");
+		key_index = 0x3;
+		break;
+	case SDLK_4:
+		LOGD("C Pressed\n");
+		key_index = 0xC;
+		break;
+	case SDLK_q:
+		LOGD("4 Pressed\n");
+		key_index = 0x4;
+		break;
+	case SDLK_w:
+		LOGD("5 Pressed\n");
+		key_index = 0x5;
+		break;
+	case SDLK_e:
+		LOGD("6 Pressed\n");
+		key_index = 0x6;
+		break;
+	case SDLK_r:
+		LOGD("D Pressed\n");
+		key_index = 0xD;
+		break;
+	case SDLK_a:
+		LOGD("7 Pressed\n");
+		key_index = 0x7;
+		break;
+	case SDLK_s:
+		LOGD("8 Pressed\n");
+		key_index = 0x8;
+		break;
+	case SDLK_d:
+		LOGD("9 Pressed\n");
+		key_index = 0x9;
+		break;
+	case SDLK_f:
+		LOGD("E Pressed\n");
+		key_index = 0xE;
+		break;
+	case SDLK_z:
+		LOGD("A Pressed\n");
+		key_index = 0xA;
+		break;
+	case SDLK_x:
+		LOGD("0 Pressed\n");
+		key_index = 0x0;
+		break;
+	case SDLK_c:
+		LOGD("B Pressed\n");
+		key_index = 0xB;
+		break;
+	case SDLK_v:
+		LOGD("F Pressed\n");
+		key_index = 0xF;
+		break;
+	default:
+		LOGD("Invalid Key pressed\n");
+		return;
+	}
+	key[key_index] = keyDown;
+}
+
+
+/*
+ * TODO(pmalani) : Add Documentation
+ */
+void kbHandler()
+{
+	if (SDL_PollEvent(&kbEvent)) {
+		switch (kbEvent.type) {
+		case SDL_QUIT:
+			quitProgram = true;
+			return;
+		case SDL_KEYDOWN:
+			updateKeyStruct(kbEvent, true);
+		case SDL_KEYUP:
+			updateKeyStruct(kbEvent, false);
+			break;
+		default:
+			LOGD("Unknown key event detected %u\n", (uint32_t)kbEvent.type);
+			break;
+		}
+	}
+}
+
+void drawScreen()
 {
 	int i;
 	uint32_t *ptr;
-	for (;;) {
+	uint32_t *gfp = gfx, r, c, ci;
+#if SDL
+	SDL_LockSurface(screen);
+	ptr = (uint32_t *)screen->pixels;
+	for (r = 0; r < SCREEN_Y * GFX_SCALE; r++) {
+		for (c = 0; c < SCREEN_X; c++) {
+			for (ci = 0; ci < GFX_SCALE; ci++)
+				*ptr++ = *gfp;
+			gfp++;
+		}
+		if ((r % GFX_SCALE) != GFX_SCALE - 1)
+			gfp -= SCREEN_X;
+	}
+	SDL_UnlockSurface(screen);
+	SDL_UpdateRect(screen, 0, 0, SCREEN_X * GFX_SCALE, SCREEN_Y * GFX_SCALE);
+#endif
+}
+
+/*
+ * TODO(pmalani) : Add Documentation
+ */
+void *execute()
+{
+	while (!quitProgram) {
 		draw = false;
 		// Fetch opcode
 		opcode = mem[pc] << 8 | mem[pc + 1];
@@ -322,51 +477,27 @@ void execute()
 		updateTimers();
 
 		if (draw) {
-			uint32_t *gfp = gfx, r, c, ci;
 			dumpScreen();
-#if SDL
-			SDL_LockSurface(screen);
-			ptr = (uint32_t *)screen->pixels;
-			for (r = 0; r < SCREEN_Y * GFX_SCALE; r++) {
-				for (c = 0; c < SCREEN_X; c++) {
-					for (ci = 0; ci < GFX_SCALE; ci++)
-						*ptr++ = *gfp;
-					gfp++;
-				}
-				if ((r % GFX_SCALE) != GFX_SCALE - 1)
-					gfp -= SCREEN_X;
-			}
-			SDL_UnlockSurface(screen);
-			SDL_UpdateRect(screen, 0, 0, SCREEN_X * GFX_SCALE, SCREEN_Y * GFX_SCALE);
-#endif
+			drawScreen();
 		}
+		kbHandler();
 		// TODO: Maybe think about spawning this off in another thread;
 		usleep(16 * 1000);
 	}
+	return;
 }
 
-void *kbHandler(void *data)
-{
-	while (SDL_PollEvent(&kbEvent)) {
-		switch (kbEvent.type) {
-		case SDL_KEYDOWN:
-			LOGI("Key press detected\n");
-			break;
-		case SDL_KEYUP:
-			LOGI("Key release detected\n");
-			break;
-		default:
-			break;
-		}
-	}
-}
-
+/*
+ * TODO(pmalani) : Add Documentation
+ */
 int main(int argc, char **argv)
 {
-	pthread_t kb_thread;
+	pthread_t execute_thread;
 	if (argc > 1) {
 		if (!strcmp(argv[1], "--debug"))
 			debug_level = LOG_DEBUG;
+		else if (!strcmp(argv[1], "--error"))
+			debug_level = LOG_ERROR;
 	}
 	LOGI("Initializing hardware\n");
 	initialize();
@@ -381,16 +512,17 @@ int main(int argc, char **argv)
 	}
 	atexit(SDL_Quit);
 
-	screen = SDL_SetVideoMode(SCREEN_X * GFX_SCALE, SCREEN_Y * GFX_SCALE, 32, SDL_HWSURFACE | SDL_RESIZABLE);
+	screen = SDL_SetVideoMode(SCREEN_X * GFX_SCALE, SCREEN_Y * GFX_SCALE,
+			32, SDL_HWSURFACE | SDL_RESIZABLE);
 	if (!screen) {
-		LOGE("Couldn't  obtain a valid SDL surface: %s\n", SDL_GetError());
+		LOGE("Couldn't  obtain a valid SDL surface: %s\n",
+				SDL_GetError());
 		return -1;
 	}
 #endif
-	pthread_create(&kb_thread, 0, kbHandler, NULL);
-	execute();
+	pthread_create(&execute_thread, 0, execute, NULL);;
 
-	pthread_join(kb_thread, NULL);
+	pthread_join(execute_thread, NULL);
 	SDL_Quit();
 	return 0;
 }
