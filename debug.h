@@ -20,4 +20,4 @@
 #define LOGI(...)	LOG(LOG_INFO, __VA_ARGS__)
 #define LOGD(...)	LOG(LOG_DEBUG, __VA_ARGS__)
 
-extern int debug_level;
+int debug_level = LOG_INFO;

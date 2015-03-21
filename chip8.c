@@ -1,27 +1,11 @@
-/*
- * Main execution file for Chip 8 emulator
- *
- * Author: Prashant Malani <p.malani@gmail.com>
- * Date:   03/14/2015
- */
-#include "debug.h"
+#include "chip8.h"
 #include <fcntl.h>
 #include <stdbool.h>
 #include "SDL/SDL.h"
-#include <pthread.h>
 
-/* Common address locations */
-#define FONTSET_BEGIN		0x50
-#define PROGRAM_BEGIN		0x200
-#define MAX_MEM			0x1000
-#define SCREEN_X		64
-#define SCREEN_Y		32
-
-#define SDL		1
 #define GFX_SCALE	32
 
 /* TODO: We should eventually shift this to the main file */
-int debug_level = LOG_INFO;
 bool draw;
 bool quitProgram = false;
 
@@ -56,8 +40,6 @@ uint16_t sp;
  */
 uint8_t key[16];
 
-/* SDL Surface */
-SDL_Surface *screen;
 SDL_Event kbEvent;
 
 /* Chip 8 built in font set */
@@ -441,7 +423,7 @@ void kbHandler()
 	}
 }
 
-void drawScreen()
+void drawScreen(SDL_Surface *screen)
 {
 	int i;
 	uint32_t *ptr;
@@ -466,8 +448,9 @@ void drawScreen()
 /*
  * TODO(pmalani) : Add Documentation
  */
-void *execute()
+void *execute(void *data)
 {
+	SDL_Surface *screen = (SDL_Surface *)data;
 	while (!quitProgram) {
 		draw = false;
 		// Fetch opcode
@@ -478,7 +461,7 @@ void *execute()
 
 		if (draw) {
 			dumpScreen();
-			drawScreen();
+			drawScreen(screen);
 		}
 		kbHandler();
 		// TODO: Maybe think about spawning this off in another thread;
@@ -487,42 +470,3 @@ void *execute()
 	return;
 }
 
-/*
- * TODO(pmalani) : Add Documentation
- */
-int main(int argc, char **argv)
-{
-	pthread_t execute_thread;
-	if (argc > 1) {
-		if (!strcmp(argv[1], "--debug"))
-			debug_level = LOG_DEBUG;
-		else if (!strcmp(argv[1], "--error"))
-			debug_level = LOG_ERROR;
-	}
-	LOGI("Initializing hardware\n");
-	initialize();
-	if(loadProgram("./zero_demo.ch8"))
-		return -1;
-
-#if SDL
-	// Load SDL Window
-	if (SDL_Init(SDL_INIT_VIDEO) < 0) {
-		LOGE("Couldn't initialize SDL: %s\n", SDL_GetError());
-		return -1;
-	}
-	atexit(SDL_Quit);
-
-	screen = SDL_SetVideoMode(SCREEN_X * GFX_SCALE, SCREEN_Y * GFX_SCALE,
-			32, SDL_HWSURFACE | SDL_RESIZABLE);
-	if (!screen) {
-		LOGE("Couldn't  obtain a valid SDL surface: %s\n",
-				SDL_GetError());
-		return -1;
-	}
-#endif
-	pthread_create(&execute_thread, 0, execute, NULL);;
-
-	pthread_join(execute_thread, NULL);
-	SDL_Quit();
-	return 0;
-}
