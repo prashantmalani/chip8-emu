@@ -1,4 +1,4 @@
-LFLAGS = `sdl-config --libs` -lSDL
+LFLAGS = `sdl-config --libs` -lSDL -pthread
 default: chip8
 
 chip8.0: chip8.c

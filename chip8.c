@@ -6,7 +6,9 @@
  */
 #include "debug.h"
 #include <fcntl.h>
+#include <stdbool.h>
 #include "SDL/SDL.h"
+#include <pthread.h>
 
 /* Common address locations */
 #define FONTSET_BEGIN		0x50
@@ -15,8 +17,12 @@
 #define SCREEN_X		64
 #define SCREEN_Y		32
 
+#define SDL 1
+#define GFX_SCALE	32
+
 /* TODO: We should eventually shift this to the main function */
 int debug_level = LOG_INFO;
+bool draw;
 
 /* Chip 8 hardware registers and machine state */
 uint16_t opcode;
@@ -35,6 +41,10 @@ uint16_t stack[16];
 /* Stack pointer points to the index of stack[] array */
 uint16_t sp;
 uint8_t key[16];
+
+/* SDL Surface */
+SDL_Surface *screen;
+SDL_Event kbEvent;
 
 /* Chip 8 built in font set */
 uint8_t font_set[80] =
@@ -75,7 +85,7 @@ void initialize()
 	sp = 0;
 
 	// Clear out graphics buffer
-	for (i = 0; i < (64 *32); i++)
+	for (i = 0; i < (SCREEN_X * SCREEN_Y); i++)
 		gfx[i] = 0;
 
 	// Clear timers
@@ -146,7 +156,7 @@ void dumpScreen()
 		LOGD("\n");
 		for (x = 0; x < (SCREEN_X * SCREEN_Y); x++) {
 			// Convert it into binary form so it's easier to view
-			LOGD("%u", gfx[x] ? 1 : 0);
+			LOGD("%c", gfx[x] ? 'W' : '-');
 			if (!((x +1) % SCREEN_X))
 				LOGD("\n");
 		}
@@ -246,6 +256,7 @@ void handleOpcode(uint16_t opcode)
 
 	case 0xD000:
 		// Case DXYN: Draw the sprite at coordinate VX, VY, height N pixels
+		draw = true;
 		x = V[(opcode & 0xF00) >> 8];
 		y = V[(opcode & 0xF0) >> 4];
 		n = opcode & 0xF;
@@ -300,21 +311,59 @@ void handleOpcode(uint16_t opcode)
 
 void execute()
 {
+	int i;
+	uint32_t *ptr;
 	for (;;) {
+		draw = false;
 		// Fetch opcode
 		opcode = mem[pc] << 8 | mem[pc + 1];
 
 		handleOpcode(opcode);
 		updateTimers();
 
-		dumpScreen();
+		if (draw) {
+			uint32_t *gfp = gfx, r, c, ci;
+			dumpScreen();
+#if SDL
+			SDL_LockSurface(screen);
+			ptr = (uint32_t *)screen->pixels;
+			for (r = 0; r < SCREEN_Y * GFX_SCALE; r++) {
+				for (c = 0; c < SCREEN_X; c++) {
+					for (ci = 0; ci < GFX_SCALE; ci++)
+						*ptr++ = *gfp;
+					gfp++;
+				}
+				if ((r % GFX_SCALE) != GFX_SCALE - 1)
+					gfp -= SCREEN_X;
+			}
+			SDL_UnlockSurface(screen);
+			SDL_UpdateRect(screen, 0, 0, SCREEN_X * GFX_SCALE, SCREEN_Y * GFX_SCALE);
+#endif
+		}
 		// TODO: Maybe think about spawning this off in another thread;
 		usleep(16 * 1000);
 	}
 }
 
+void *kbHandler(void *data)
+{
+	while (SDL_PollEvent(&kbEvent)) {
+		switch (kbEvent.type) {
+		case SDL_KEYDOWN:
+			LOGI("Key press detected\n");
+			break;
+		case SDL_KEYUP:
+			LOGI("Key release detected\n");
+			break;
+		default:
+			break;
+		}
+	}
+}
+
 int main(int argc, char **argv)
 {
+	pthread_t kb_thread;
 	if (argc > 1) {
 		if (!strcmp(argv[1], "--debug"))
 			debug_level = LOG_DEBUG;
@@ -323,6 +372,25 @@ int main(int argc, char **argv)
 	initialize();
 	if(loadProgram("./zero_demo.ch8"))
 		return -1;
+
+#if SDL
+	// Load SDL Window
+	if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+		LOGE("Couldn't initialize SDL: %s\n", SDL_GetError());
+		return -1;
+	}
+	atexit(SDL_Quit);
+
+	screen = SDL_SetVideoMode(SCREEN_X * GFX_SCALE, SCREEN_Y * GFX_SCALE, 32, SDL_HWSURFACE | SDL_RESIZABLE);
+	if (!screen) {
+		LOGE("Couldn't  obtain a valid SDL surface: %s\n", SDL_GetError());
+		return -1;
+	}
+#endif
+	pthread_create(&kb_thread, 0, kbHandler, NULL);
 	execute();
+
+	pthread_join(kb_thread, NULL);
+	SDL_Quit();
 	return 0;
 }
