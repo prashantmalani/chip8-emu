@@ -3,8 +3,6 @@
 #include <stdbool.h>
 #include "SDL/SDL.h"
 
-#define GFX_SCALE	32
-
 /* TODO: We should eventually shift this to the main file */
 bool draw;
 bool quitProgram = false;
@@ -42,6 +40,9 @@ uint8_t key[16];
 
 SDL_Event kbEvent;
 
+/* SDL Surface */
+SDL_Surface *screen;
+
 /* Chip 8 built in font set */
 uint8_t font_set[80] =
 {
@@ -67,7 +68,7 @@ uint8_t font_set[80] =
  * TODO(pmalani) : Add Documentation
  * Reset all the memory and register values
  */
-void initialize()
+int initialize()
 {
 	int i;
 
@@ -98,6 +99,24 @@ void initialize()
 	/* Load fontset into memory */
 	for (i = 0; i < 80; i++)
 		mem[80 + i] = font_set[i];
+
+#if SDL
+	// Load SDL Window
+	if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+		LOGE("Couldn't initialize SDL: %s\n", SDL_GetError());
+		return -1;
+	}
+	atexit(SDL_Quit);
+
+	screen = SDL_SetVideoMode(SCREEN_X * GFX_SCALE, SCREEN_Y * GFX_SCALE,
+			32, SDL_HWSURFACE | SDL_RESIZABLE);
+	if (!screen) {
+		LOGE("Couldn't  obtain a valid SDL surface: %s\n",
+				SDL_GetError());
+		return -1;
+	}
+#endif
+	return 0;
 }
 
 /*
@@ -450,7 +469,6 @@ void drawScreen(SDL_Surface *screen)
  */
 void *execute(void *data)
 {
-	SDL_Surface *screen = (SDL_Surface *)data;
 	while (!quitProgram) {
 		draw = false;
 		// Fetch opcode

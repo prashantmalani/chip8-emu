@@ -1,5 +1,5 @@
 LFLAGS = `sdl-config --libs` -lSDL -pthread
-default: chip8
+default: main
 
 chip8.o: chip8.c
 	gcc -c -g chip8.c -o chip8.o $(LFLAGS)

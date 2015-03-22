@@ -10,6 +10,8 @@
 
 #define SDL		1
 
-void initialize(void);
+#define GFX_SCALE	32
+
+int initialize(void);
 void *execute(void *);
 int loadProgram(char *);
