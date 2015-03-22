@@ -1,9 +1,18 @@
+/*
+ * chip8.c
+ *
+ * Contains emulator state, including registers, timer and graphics buffer,
+ * along with opcode interpreter.
+ *
+ * Author: Prashant Malani <p.malani@gmail.com>
+ * Date:   03/21/2015
+ *
+ */
 #include "chip8.h"
 #include <fcntl.h>
 #include <stdbool.h>
 #include "SDL/SDL.h"
 
-/* TODO: We should eventually shift this to the main file */
 bool draw;
 bool quitProgram = false;
 
@@ -15,6 +24,7 @@ uint8_t V[16];
 uint16_t I;
 uint16_t pc;
 
+/* Graphics buffer holding screen state */
 uint32_t gfx[SCREEN_X * SCREEN_Y];
 
 uint8_t delay_timer;
@@ -34,7 +44,6 @@ uint16_t sp;
  *     4--5--6--D                 Q--W--E--R
  *     7--8--9--E                 A--S--D--F
  *     A--0--B--F                 Z--X--C--V
- *
  */
 uint8_t key[16];
 
@@ -65,8 +74,16 @@ uint8_t font_set[80] =
 };
 
 /*
- * TODO(pmalani) : Add Documentation
- * Reset all the memory and register values
+ * Function: initialize
+ * ---------------------
+ *
+ * Initialize the emulator hardware state and start up the SDL Surface.
+ *
+ * Args: NONE
+ *
+ * Returns:
+ *	0 on success.
+ *	Non-zero value on error.
  */
 int initialize()
 {
@@ -120,7 +137,17 @@ int initialize()
 }
 
 /*
- * TODO(pmalani) : Add Documentation
+ * Function: loadProgram
+ * ----------------------
+ *
+ * Loads a given program binary into the emulator memory.
+ *
+ * Args:
+ *	filepath: String pointer pointing to the filepath name.
+ *
+ * Returns:
+ *	0 on success
+ *	Non-zero value on error.
  */
 int loadProgram(char *filepath)
 {
@@ -159,7 +186,15 @@ int loadProgram(char *filepath)
 }
 
 /*
- * TODO(pmalani) : Add Documentation
+ * Function: updateTimers
+ * ----------------------
+ *
+ * Update the values of the delay and sound timer.
+ * Called once every cycle.
+ *
+ * Args: NONE
+ *
+ * Returns: NONE
  */
 void updateTimers()
 {
@@ -175,7 +210,15 @@ void updateTimers()
 }
 
 /*
- * TODO(pmalani) : Add Documentation
+ * Function: dumpScreen
+ * --------------------
+ *
+ * Dump the contents of the graphics buffer onto STDOUT
+ * Used for debug purposes.
+ *
+ * Args: NONE
+ *
+ * Returns: NONE
  */
 void dumpScreen()
 {
@@ -190,7 +233,16 @@ void dumpScreen()
 }
 
 /*
- * TODO(pmalani) : Add Documentation
+ * Function: handle8case
+ * ---------------------
+ *
+ * Sub-routine to handle execution of all opcodes that have a prefix of 0x8000.
+ * Should only be called from execute().
+ *
+ * Args:
+ *	opcode: The opcode being executed this cycle.
+ *
+ * Returns: NONE
  */
 void handle8case(uint16_t opcode)
 {
@@ -230,8 +282,18 @@ void handle8case(uint16_t opcode)
 	}
 }
 
+
 /*
- * TODO(pmalani) : Add Documentation
+ * Function: handleFcase
+ * ---------------------
+ *
+ * Sub-routine to handle execution of all opcodes that have a prefix of 0xF000.
+ * Should only be called from execute()
+ *
+ * Args:
+ *	opcode: The opcode being executed this cycle.
+ *
+ * Returns: NONE
  */
 void handleFcase(uint16_t opcode)
 {
@@ -265,8 +327,17 @@ void handleFcase(uint16_t opcode)
 }
 
 /*
+ * Function: handleOpcode
+ * ----------------------
+ *
  * Handle the opcode and act accordingly.
- * It is assumed that the pc modifications will occur here itself
+ * Called once every cycle.
+ * NOTE: It is assumed that the pc modifications will occur here itself.
+ *
+ * Args:
+ *	opcode: The opcode currently being executed.
+ *
+ * Returns: NONE
  */
 void handleOpcode(uint16_t opcode)
 {
@@ -289,7 +360,7 @@ void handleOpcode(uint16_t opcode)
 		break;
 
 	case 0xD000:
-		// Case DXYN: Draw the sprite at coordinate VX, VY, height N pixels
+		// Case DXYN: Draw the sprite at coordinate VX, VY, height N px
 		draw = true;
 		x = V[(opcode & 0xF00) >> 8];
 		y = V[(opcode & 0xF0) >> 4];
@@ -300,12 +371,12 @@ void handleOpcode(uint16_t opcode)
 				if (cur_pixel & (0x80 >> i)) {
 					if(gfx[((y + j) * SCREEN_X) + x + i])
 						V[0xF] = 1;
-					gfx[((y + j) * SCREEN_X) + x + i] ^= 0xFFFFFFFF;
+					gfx[((y + j) * SCREEN_X) + x + i] ^=
+						0xFFFFFFFF;
 				}
 			}
 		}
 
-		// TODO: Set a flag to draw something
 		pc += 2;
 		break;
 
@@ -343,6 +414,19 @@ void handleOpcode(uint16_t opcode)
 	}
 }
 
+/*
+ * Function: updateKeyStruct
+ * -------------------------
+ *
+ * Called from the SDL KeyEvent handler.
+ * Updates the keypad structure to reflect which key has been pressed/released.
+ *
+ * Args:
+ *	event: The SDL_Event being executed
+ *	keyDown: Whether the key was pressed down.
+ *
+ * Returns: NONE
+ */
 void updateKeyStruct(SDL_Event event, bool keyDown)
 {
 	uint8_t key_index;
@@ -421,7 +505,15 @@ void updateKeyStruct(SDL_Event event, bool keyDown)
 
 
 /*
- * TODO(pmalani) : Add Documentation
+ * Function: kbHandler
+ * -------------------
+ *
+ * Handler of all Events occuring inside the SDL Window.
+ * Should be executed once every cycle.
+ *
+ * Args: NONE
+ *
+ * Returns: NONE
  */
 void kbHandler()
 {
@@ -442,6 +534,16 @@ void kbHandler()
 	}
 }
 
+/* Function: drawScreen
+ * --------------------
+ *
+ * Routine to draw the contents of the graphics buffer onto the SDL Window.
+ *
+ * Args:
+ *	screen: Pointer to the SDL_Surface on which to draw.
+ *
+ * Returns: NONE
+ */
 void drawScreen(SDL_Surface *screen)
 {
 	int i;
@@ -465,7 +567,17 @@ void drawScreen(SDL_Surface *screen)
 }
 
 /*
- * TODO(pmalani) : Add Documentation
+ * Function: execute
+ * -----------------
+ *
+ * Primary routine which fetches the opcode, handles it, performs book-keeping
+ * of state and draws and updates the window if required.
+ * Should execute once every 16ms to mimic a 60Hz operating frequency.
+ *
+ * Args:
+ *	data: Pointer to optional data passed to the thread
+ *
+ * Returns: NONE
  */
 void *execute(void *data)
 {
@@ -482,6 +594,7 @@ void *execute(void *data)
 			drawScreen(screen);
 		}
 		kbHandler();
+
 		// TODO: Maybe think about spawning this off in another thread;
 		usleep(16 * 1000);
 	}

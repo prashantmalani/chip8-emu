@@ -1,8 +1,10 @@
 /*
- * Main execution file for Chip 8 emulator
+ * Main execution file for Chip 8 emulator.
+ *
  *
  * Author: Prashant Malani <p.malani@gmail.com>
  * Date:   03/14/2015
+ *
  */
 #include "debug.h"
 #include <pthread.h>
@@ -11,7 +13,10 @@
 int debug_level = LOG_INFO;
 
 /*
- * TODO(pmalani) : Add Documentation
+ * Function: main
+ * --------------
+ *
+ * Main entry point of execution for the code.
  */
 int main(int argc, char **argv)
 {

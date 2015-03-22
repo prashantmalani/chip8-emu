@@ -4,6 +4,8 @@
  * Author : Prashant Malani
  * Date:    03/14/2015
  */
+#ifndef _DEBUG_H_
+#define _DEBUG_H_
 #include <stdio.h>
 
 #define LOG_ERROR		3
@@ -21,3 +23,5 @@
 #define LOGD(...)	LOG(LOG_DEBUG, __VA_ARGS__)
 
 extern int debug_level;
+
+#endif

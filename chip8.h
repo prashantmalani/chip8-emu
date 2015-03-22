@@ -1,3 +1,15 @@
+/*
+ * chip8.h
+ *
+ * Contains macro definitions used by chip8.c
+ * Also contains declaration of functions which are called outside of chip8.c
+ *
+ * Author: Prashant Malani <p.malani@gmail.com>
+ * Date  : 03/21/2015
+ *
+ */
+#ifndef _CHIP8_H_
+#define _CHIP8_H_
 
 #include "debug.h"
 
@@ -15,3 +27,5 @@
 int initialize(void);
 void *execute(void *);
 int loadProgram(char *);
+
+#endif
