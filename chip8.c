@@ -13,6 +13,7 @@
 #include <stdbool.h>
 #include "SDL/SDL.h"
 
+#define STACK_SIZE	16
 bool draw;
 bool quitProgram = false;
 
@@ -30,8 +31,8 @@ uint32_t gfx[SCREEN_X * SCREEN_Y];
 uint8_t delay_timer;
 uint8_t sound_timer;
 
-uint16_t stack[16];
-/* Stack pointer points to the index of stack[] array */
+uint16_t stack[STACK_SIZE];
+/* Stack pointer points to top-most used index of stack[] array */
 uint16_t sp;
 
 /*
@@ -99,7 +100,8 @@ int initialize()
 		stack[i] = 0;
 		key[i] = 0;
 	}
-	sp = 0;
+
+	sp = -1;
 
 	// Clear out graphics buffer
 	for (i = 0; i < (SCREEN_X * SCREEN_Y); i++)
@@ -248,26 +250,32 @@ void handle8case(uint16_t opcode)
 {
 	switch(opcode & 0xF) {
 	case 0x0:
+		// Case 8XY0: Sets VX to the value of VY.
 		V[(opcode & 0xF00) >> 8] = V[(opcode & 0xF0) >> 4];
 		pc += 2;
 		break;
 
 	case 0x1:
+		// Case 8XY1: Sets VX to VX or VY.
 		V[(opcode & 0xF00) >> 8] |= V[(opcode & 0xF0) >> 4];
 		pc += 2;
 		break;
 
 	case 0x2:
+		// Case 8XY2: Sets VX to VX and VY.
 		V[(opcode & 0xF00) >> 8] &= V[(opcode & 0xF0) >> 4];
 		pc += 2;
 		break;
 
 	case 0x3:
+		// Case 8XY3: Sets VX to VX xor VY.
 		V[(opcode & 0xF00) >> 8] ^= V[(opcode & 0xF0) >> 4];
 		pc += 2;
 		break;
 
 	case 0x4:
+		// Case 8XY4: Adds VY to VX. VF is set to 1 when there's a
+		// carry, and to 0 when there isn't.
 		if (V[(opcode & 0xF00) >> 8] + V[(opcode & 0xF0) >> 4] >
 		    0xFFFF)
 			V[0xF] = 1;
@@ -299,6 +307,7 @@ void handleFcase(uint16_t opcode)
 {
 	switch(opcode & 0xFF) {
 	case 0x07:
+		// Case FX07: Sets VX to the value of the delay timer.
 		V[(opcode & 0xF00) >> 8] = delay_timer;
 		pc +=2;
 		break;
@@ -327,6 +336,49 @@ void handleFcase(uint16_t opcode)
 }
 
 /*
+ * Function: handle0case
+ * ---------------------
+ *
+ * Sub-routine to handle execution of all opcodes that have a prefix of 0x0000.
+ * Should only be called from execute()
+ *
+ * Args:
+ *	opcode: The opcode being executed this cycle.
+ *
+ * Returns: NONE
+ */
+void handle0case(uint16_t opcode)
+{
+	unsigned i,j;
+
+	switch (opcode) {
+	case 0x00E0:
+		// Case: Clears the screen.
+		for (i = 0; i < SCREEN_X; i++)
+			for (j = 0; j < SCREEN_Y; j++)
+				gfx[(i * SCREEN_X) + j] = 0;
+		pc += 2;
+		draw = true;
+		break;
+
+	case 0x00EE:
+		// Case: Return from a sub-routine.
+		if (sp < 0) {
+			LOGE("No stack address to return to!\n");
+			quitProgram = true;
+			return ;
+		}
+		// Pop address off the stack, and decrement stack pointer.
+		pc = stack[sp--];
+		break;
+
+	default:
+		// TODO: Case 0NNN: Call RCA 1802 program at address NNN.
+		break;
+	}
+}
+
+/*
  * Function: handleOpcode
  * ----------------------
  *
@@ -347,10 +399,77 @@ void handleOpcode(uint16_t opcode)
 	uint16_t tmp;
 	LOGD("Fetched opcode is %02x\n", opcode);
 	switch(opcode & 0xF000) {
+	case 0x0000:
+		handle0case(opcode);
+		break;
+
+	case 0x1000:
+		// Case 1NNN: Jump to address at NNN
+		pc = opcode & 0xFFF;
+		break;
+
+	case 0x2000:
+		// Case 2NNN: Call subroutine at NNN
+		// NOTE: Have to be careful here, and store the next address
+		// in the PC. If you store the current PC, then when you finally
+		// return from the subroutine, you'll execute this current PC
+		// again, and get into a loop.
+		//
+		// At least that's what I *think* will happen....
+		if (sp == STACK_SIZE - 1) {
+			LOGE("Ran out of stack space!!\n");
+			quitProgram = true;
+			break;
+		}
+		stack[++sp] = (pc + 2);
+		pc = opcode & 0xFFF;
+		break;
+
+	case 0x3000:
+		// Case: Skips the next instruction if VX equals NN.
+		if (V[(opcode & 0xF00) >> 8] == (opcode & 0xFF))
+			pc +=2;
+		pc +=2;
+		break;
+
+	case 0x4000:
+		// Case: Skips the next instruction if VX doesn't equal NN.
+		if (V[(opcode & 0xF00) >> 8] != (opcode & 0xFF))
+			pc +=2;
+		pc +=2;
+		break;
+
+	case 0x5000:
+		// Case: Skips the next instruction if VX equals VY.
+		if (V[(opcode & 0xF00) >> 8] == V[(opcode & 0xF0) >> 4])
+			pc +=2;
+		pc +=2;
+		break;
+
 	case 0x6000:
 		// Case 6XNN: Sets VX to NN.
 		V[(opcode & 0xF00) >> 8] = opcode & 0xFF;
 		pc += 2;
+		break;
+
+	case 0x7000:
+		// Case 7XNN: Add NN to VX
+		tmp = V[(opcode & 0xF00) >> 8];
+		V[(opcode & 0xF00) >> 8] += (opcode & 0xFF);
+		if (V[(opcode & 0xF00) >> 8] < tmp)
+			V[0xF] = 1;
+		pc += 2;
+		break;
+
+	case 0x8000:
+		handle8case(opcode);
+		break;
+
+	case 0x9000:
+		// Case: Skips the next instruction if VX equals VY.
+		if (V[(opcode & 0xF00) >> 8] != V[(opcode & 0xF0) >> 4])
+			pc +=2;
+		pc +=2;
 		break;
 
 	case 0xA000:
@@ -380,31 +499,8 @@ void handleOpcode(uint16_t opcode)
 		pc += 2;
 		break;
 
-	case 0x7000:
-		// Case 7XNN: Add NN to VX
-		tmp = V[(opcode & 0xF00) >> 8];
-		V[(opcode & 0xF00) >> 8] += (opcode & 0xFF);
-		if (V[(opcode & 0xF00) >> 8] < tmp)
-			V[0xF] = 1;
-		pc += 2;
-		break;
-
 	case 0xF000:
 		handleFcase(opcode);
-		break;
-
-	case 0x4000:
-		if (V[(opcode & 0xF00) >> 8] != (opcode & 0xFF))
-			pc +=2;
-		pc +=2;
-		break;
-
-	case 0x8000:
-		handle8case(opcode);
-		break;
-
-	case 0x1000:
-		pc = opcode & 0xFFF;
 		break;
 
 	default:
@@ -585,7 +681,6 @@ void *execute(void *data)
 		draw = false;
 		// Fetch opcode
 		opcode = mem[pc] << 8 | mem[pc + 1];
-
 		handleOpcode(opcode);
 		updateTimers();
 
