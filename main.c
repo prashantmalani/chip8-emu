@@ -21,10 +21,16 @@ int debug_level = LOG_INFO;
 int main(int argc, char **argv)
 {
 	pthread_t execute_thread;
-	if (argc > 1) {
-		if (!strcmp(argv[1], "--debug"))
+
+	if (argc < 2) {
+		LOGE("Program path not provided.\n");
+		return -1;
+	}
+
+	if (argc > 2) {
+		if (!strcmp(argv[2], "--debug"))
 			debug_level = LOG_DEBUG;
-		else if (!strcmp(argv[1], "--error"))
+		else if (!strcmp(argv[2], "--error"))
 			debug_level = LOG_ERROR;
 	}
 	LOGI("Initializing hardware\n");
@@ -32,7 +38,7 @@ int main(int argc, char **argv)
 	if (initialize())
 		return -1;
 
-	if(loadProgram("./zero_demo.ch8"))
+	if(loadProgram(argv[1]))
 		return -1;
 
 	pthread_create(&execute_thread, 0, execute, NULL);

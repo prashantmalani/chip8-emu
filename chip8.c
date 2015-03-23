@@ -346,6 +346,8 @@ void handle8case(uint16_t opcode)
  */
 void handleFcase(uint16_t opcode)
 {
+	unsigned i;
+	uint16_t tmp;
 	switch(opcode & 0xFF) {
 	case 0x07:
 		// Case FX07: Sets VX to the value of the delay timer.
@@ -354,7 +356,14 @@ void handleFcase(uint16_t opcode)
 		break;
 
 	case 0x0A:
-		// TODO: Case 0xFX0A, a key press is awaited, and then stored in VX
+		// Case 0xFX0A, a key press is awaited, and then stored in VX.
+		for (i = 0; i < 16; i++) {
+			if (key[i]) {
+				V[(opcode & 0xF00) >> 8] = i;
+				pc += 2;
+				break;
+			}
+		}
 		break;
 
 	case 0x15:
@@ -369,6 +378,45 @@ void handleFcase(uint16_t opcode)
 		pc += 2;
 		break;
 
+	case 0x1E:
+		if (I + V[(opcode & 0xF00) >> 8] > 0xFFFF)
+			V[0xF] = 1;
+		else
+			V[0xF] = 0;
+		I += V[(opcode & 0xF00) >> 8];
+		pc += 2;
+		break;
+
+	case 0x29:
+		I = 80 + (5 * V[(opcode & 0xF00) >> 8]);
+		pc += 2;
+		break;
+
+	case 0x33:
+		tmp = V[(opcode & 0xF00) >> 8];
+		mem[I + 2] = tmp % 10;
+		tmp /= 10;
+		mem[I + 1] = tmp % 10;
+		tmp /= 10;
+		mem[I] = tmp % 10;
+		pc += 2;
+		break;
+
+	case 0x55:
+		for (i = 0; i < 16; i++) {
+			mem[I + (2 * i)] = (V[i] & 0xFF00) >> 8;
+			mem[I + (2 * i) +1] = V[i] & 0xFF;
+		}
+		pc += 2;
+		break;
+
+	case 0x65:
+		for (i = 0; i < 16; i++) {
+			V[i] = (mem[I + (2 * i)] << 8) |
+					mem[I + (2 * i) +1];
+		}
+		pc += 2;
+		break;
 	default:
 		LOGE("Unknown opcode %02x\n", opcode);
 		pc += 2;
@@ -541,14 +589,29 @@ void handleOpcode(uint16_t opcode)
 			cur_pixel = mem[I + j];
 			for (i = 0; i < 8; i++) {
 				if (cur_pixel & (0x80 >> i)) {
-					if(gfx[((y + j) * SCREEN_X) + x + i])
+					if(gfx[((y + j) * SCREEN_X) +
+						((x + i) & SCREEN_X)])
 						V[0xF] = 1;
-					gfx[((y + j) * SCREEN_X) + x + i] ^=
+					gfx[((y + j) * SCREEN_X) +
+						((x + i) % SCREEN_X)] ^=
 						0xFFFFFFFF;
 				}
 			}
 		}
 
+		pc += 2;
+		break;
+
+	case 0xE000:
+		if ((opcode & 0xFF) == 0x9E) {
+			if (key[V[(opcode & 0xF00) >> 8]])
+				pc += 2;
+		} else if ((opcode & 0xFF) == 0xA1) {
+			if (!key[V[(opcode & 0xF00) >> 8]])
+				pc += 2;
+		} else {
+			LOGE("Unknown opcode!\n");
+		}
 		pc += 2;
 		break;
 
@@ -742,9 +805,10 @@ void *execute(void *data)
 			drawScreen(screen);
 		}
 		kbHandler();
+		// getchar();
 
 		// TODO: Maybe think about spawning this off in another thread;
-		usleep(16 * 1000);
+		usleep(16 * 10);
 	}
 	return;
 }
