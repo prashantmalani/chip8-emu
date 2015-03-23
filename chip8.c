@@ -279,7 +279,48 @@ void handle8case(uint16_t opcode)
 		if (V[(opcode & 0xF00) >> 8] + V[(opcode & 0xF0) >> 4] >
 		    0xFFFF)
 			V[0xF] = 1;
+		else
+			V[0xF] = 0;
 		V[(opcode & 0xF00) >> 8] += V[(opcode & 0xF0) >> 4];
+		pc += 2;
+		break;
+
+	case 0x5:
+		// Case 8XY5: Subtracts VY from VX. VF is set to 1 when there's
+		// a borrow, and to 0 when there isn't.
+		if (V[(opcode & 0xF00) >> 8] < V[(opcode & 0xF0) >> 4])
+			V[0xF] = 1;
+		else
+			V[0xF] = 0;
+		V[(opcode & 0xF00) >> 8] -= V[(opcode & 0xF0) >> 4];
+		pc += 2;
+		break;
+
+	case 0x6:
+		// Case 8XY6:Shifts VX right by one. VF is set to the value of
+		// the least significant bit of VX before the shift.
+		V[0xF] = V[(opcode & 0xF00) >> 8] & 1;
+		V[(opcode & 0xF00) >> 8] >>= 1;
+		pc += 2;
+		break;
+
+	case 0x7:
+		// Case 8XY7: Sets VX to VY minus VX. VF is set to 1 when there's
+		// a borrow, and to 0 when there isn't.
+		if (V[(opcode & 0xF00) >> 8] > V[(opcode & 0xF0) >> 4])
+			V[0xF] = 1;
+		else
+			V[0xF] = 0;
+		V[(opcode & 0xF00) >> 8] = V[(opcode & 0xF0) >> 4] -
+			V[(opcode & 0xF00) >> 8];
+		pc += 2;
+		break;
+
+	case 0xE:
+		// Case 8XYE: Shifts VX right by one. VF is set to the value of
+		// the least significant bit of VX before the shift.
+		V[0xF] = (V[(opcode & 0xF00) >> 8] & 0x8000) >> 15;
+		V[(opcode & 0xF00) >> 8] <<= 1;
 		pc += 2;
 		break;
 
@@ -456,8 +497,9 @@ void handleOpcode(uint16_t opcode)
 		// Case 7XNN: Add NN to VX
 		tmp = V[(opcode & 0xF00) >> 8];
 		V[(opcode & 0xF00) >> 8] += (opcode & 0xFF);
-		if (V[(opcode & 0xF00) >> 8] < tmp)
-			V[0xF] = 1;
+		// TODO: Find whether Carry flag needs to be set. Spec says no.
+		// if (V[(opcode & 0xF00) >> 8] < tmp)
+		//	V[0xF] = 1;
 		pc += 2;
 		break;
 
@@ -475,6 +517,17 @@ void handleOpcode(uint16_t opcode)
 	case 0xA000:
 		// Case ANNN: Set I to address NNN.
 		I = opcode & 0xFFF;
+		pc += 2;
+		break;
+
+	case 0xB000:
+		// Case BNNN: Jumps to the address NNN plus V0.
+		pc = (opcode & 0xFFF) + V[0];
+		break;
+
+	case 0xC000:
+		// Case CXNN: Sets VX to a random number, masked by NN.
+		V[(opcode & 0xF00) >> 8] = (rand() % 0xFF) & (opcode & 0xFF);
 		pc += 2;
 		break;
 
