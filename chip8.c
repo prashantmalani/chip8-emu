@@ -346,7 +346,7 @@ void handle8case(uint16_t opcode)
  */
 void handleFcase(uint16_t opcode)
 {
-	unsigned i;
+	unsigned i, ind;
 	uint16_t tmp;
 	switch(opcode & 0xFF) {
 	case 0x07:
@@ -403,7 +403,9 @@ void handleFcase(uint16_t opcode)
 		break;
 
 	case 0x55:
-		for (i = 0; i < 16; i++) {
+		ind = (opcode & 0xF00) >> 8;
+		for (i = 0; i < ind; i++) {
+			LOGD("Reg V[%u] = %02x\n", i, V[i]);
 			mem[I + (2 * i)] = (V[i] & 0xFF00) >> 8;
 			mem[I + (2 * i) +1] = V[i] & 0xFF;
 		}
@@ -411,9 +413,11 @@ void handleFcase(uint16_t opcode)
 		break;
 
 	case 0x65:
-		for (i = 0; i < 16; i++) {
+		ind = (opcode & 0xF00) >> 8;
+		for (i = 0; i < ind; i++) {
 			V[i] = (mem[I + (2 * i)] << 8) |
 					mem[I + (2 * i) +1];
+			LOGD("Reg V[%u] = %02x\n", i, V[i]);
 		}
 		pc += 2;
 		break;
@@ -584,6 +588,7 @@ void handleOpcode(uint16_t opcode)
 		draw = true;
 		x = V[(opcode & 0xF00) >> 8];
 		y = V[(opcode & 0xF0) >> 4];
+		LOGD("X = %u, Y = %u\n", x, y);
 		n = opcode & 0xF;
 		for (j = 0; j < n; j++) {
 			cur_pixel = mem[I + j];
@@ -620,7 +625,7 @@ void handleOpcode(uint16_t opcode)
 		break;
 
 	default:
-		LOGE("Unknown opcde %02x\n", opcode);
+		LOGE("Unknown opcode %02x\n", opcode);
 		pc += 2;
 		break;
 	}
@@ -796,7 +801,9 @@ void *execute(void *data)
 	while (!quitProgram) {
 		draw = false;
 		// Fetch opcode
+		opcode = mem[0x22A] << 8 | mem[0x22A + 1];
 		opcode = mem[pc] << 8 | mem[pc + 1];
+		LOGD("PC=%02x\n", pc);
 		handleOpcode(opcode);
 		updateTimers();
 
@@ -805,7 +812,7 @@ void *execute(void *data)
 			drawScreen(screen);
 		}
 		kbHandler();
-		// getchar();
+		getchar();
 
 		// TODO: Maybe think about spawning this off in another thread;
 		usleep(16 * 10);
