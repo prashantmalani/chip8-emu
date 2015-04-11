@@ -743,6 +743,7 @@ void kbHandler()
 			return;
 		case SDL_KEYDOWN:
 			updateKeyStruct(kbEvent, true);
+			break;
 		case SDL_KEYUP:
 			updateKeyStruct(kbEvent, false);
 			break;
@@ -817,7 +818,7 @@ void *execute(void *data)
 		//getchar();
 
 		// TODO: Maybe think about spawning this off in another thread;
-		usleep(16 * 10);
+		usleep(SLEEP_CYCLE_DURATION);
 	}
 	return;
 }

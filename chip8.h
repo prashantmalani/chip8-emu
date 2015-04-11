@@ -20,9 +20,11 @@
 #define SCREEN_X		64
 #define SCREEN_Y		32
 
-#define SDL		1
+#define SDL			1
 
-#define GFX_SCALE	32
+#define GFX_SCALE		32
+
+#define SLEEP_CYCLE_DURATION	16
 
 int initialize(void);
 void *execute(void *);
