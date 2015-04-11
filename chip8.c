@@ -277,7 +277,7 @@ void handle8case(uint16_t opcode)
 		// Case 8XY4: Adds VY to VX. VF is set to 1 when there's a
 		// carry, and to 0 when there isn't.
 		if (V[(opcode & 0xF00) >> 8] + V[(opcode & 0xF0) >> 4] >
-		    0xFFFF)
+		    0xFF)
 			V[0xF] = 1;
 		else
 			V[0xF] = 0;
@@ -286,12 +286,12 @@ void handle8case(uint16_t opcode)
 		break;
 
 	case 0x5:
-		// Case 8XY5: Subtracts VY from VX. VF is set to 1 when there's
-		// a borrow, and to 0 when there isn't.
+		// Case 8XY5: Subtracts VY from VX. VF is set to 0 when there's
+		// a borrow, and to 1 when there isn't.
 		if (V[(opcode & 0xF00) >> 8] < V[(opcode & 0xF0) >> 4])
-			V[0xF] = 1;
-		else
 			V[0xF] = 0;
+		else
+			V[0xF] = 1;
 		V[(opcode & 0xF00) >> 8] -= V[(opcode & 0xF0) >> 4];
 		pc += 2;
 		break;
@@ -305,12 +305,12 @@ void handle8case(uint16_t opcode)
 		break;
 
 	case 0x7:
-		// Case 8XY7: Sets VX to VY minus VX. VF is set to 1 when there's
-		// a borrow, and to 0 when there isn't.
+		// Case 8XY7: Sets VX to VY minus VX. VF is set to 0 when there's
+		// a borrow, and to 1 when there isn't.
 		if (V[(opcode & 0xF00) >> 8] > V[(opcode & 0xF0) >> 4])
-			V[0xF] = 1;
-		else
 			V[0xF] = 0;
+		else
+			V[0xF] = 1;
 		V[(opcode & 0xF00) >> 8] = V[(opcode & 0xF0) >> 4] -
 			V[(opcode & 0xF00) >> 8];
 		pc += 2;
@@ -319,7 +319,7 @@ void handle8case(uint16_t opcode)
 	case 0xE:
 		// Case 8XYE: Shifts VX right by one. VF is set to the value of
 		// the least significant bit of VX before the shift.
-		V[0xF] = (V[(opcode & 0xF00) >> 8] & 0x8000) >> 15;
+		V[0xF] = (V[(opcode & 0xF00) >> 8] & 0x8) >> 7;
 		V[(opcode & 0xF00) >> 8] <<= 1;
 		pc += 2;
 		break;
@@ -348,6 +348,7 @@ void handleFcase(uint16_t opcode)
 {
 	unsigned i, ind;
 	uint16_t tmp;
+	bool keyPressed = false;
 	switch(opcode & 0xFF) {
 	case 0x07:
 		// Case FX07: Sets VX to the value of the delay timer.
@@ -360,10 +361,11 @@ void handleFcase(uint16_t opcode)
 		for (i = 0; i < 16; i++) {
 			if (key[i]) {
 				V[(opcode & 0xF00) >> 8] = i;
-				pc += 2;
-				break;
+				keyPressed = true;
 			}
 		}
+		if (keyPressed)
+			pc += 2;
 		break;
 
 	case 0x15:
@@ -404,21 +406,21 @@ void handleFcase(uint16_t opcode)
 
 	case 0x55:
 		ind = (opcode & 0xF00) >> 8;
-		for (i = 0; i < ind; i++) {
+		for (i = 0; i <= ind; i++) {
 			LOGD("Reg V[%u] = %02x\n", i, V[i]);
-			mem[I + (2 * i)] = (V[i] & 0xFF00) >> 8;
-			mem[I + (2 * i) +1] = V[i] & 0xFF;
+			mem[I + i] = V[i];
 		}
+		I += ind + 1;
 		pc += 2;
 		break;
 
 	case 0x65:
 		ind = (opcode & 0xF00) >> 8;
-		for (i = 0; i < ind; i++) {
-			V[i] = (mem[I + (2 * i)] << 8) |
-					mem[I + (2 * i) +1];
+		for (i = 0; i <= ind; i++) {
+			V[i] = mem[I + i];
 			LOGD("Reg V[%u] = %02x\n", i, V[i]);
 		}
+		I += ind + 1;
 		pc += 2;
 		break;
 	default:
@@ -812,7 +814,7 @@ void *execute(void *data)
 			drawScreen(screen);
 		}
 		kbHandler();
-		getchar();
+		//getchar();
 
 		// TODO: Maybe think about spawning this off in another thread;
 		usleep(16 * 10);
