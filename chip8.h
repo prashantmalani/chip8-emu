@@ -22,7 +22,7 @@
 
 #define SDL			1
 
-#define GFX_SCALE		32
+#define GFX_SCALE		16
 
 #define SLEEP_CYCLE_DURATION	16
 

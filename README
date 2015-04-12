@@ -1,0 +1,43 @@
+CHIP8 Emulator
+
+Author: Prashant Malani
+Date  : 04/11/2015
+
+This is a simple emulator designed to interpret and run programs written for the
+the CHIP8 instruction set and architecture.
+
+The reference http://www.multigesture.net/articles/how-to-write-an-emulator-chip-8-interpreter/
+was used to help getting started with writing this program.
+In addition, the CHIP8 wikipedia entry (http://en.wikipedia.org/wiki/CHIP-8) was
+immensely helpful in finding the various instruction definitions.
+
+Usage is simple. Simply run 'make' inside the source directory. This will
+generate the 'main' object file, This can be run, giving the path to your CHIP8
+program as the argument:
+  ./main ~/path/to/foo.ch8 (--<debug_flag>)
+
+'make clean' will delete all the object files.
+
+NOTE:
+This implementation outputs the graphics using SDL, so the requisite SDL libs
+must be installed on the machine, to ensure it compiles successfully. You can
+set SDL up easily by perusing https://wiki.libsdl.org/Installation
+
+MISC:
+- Verbose logging can be enabled using the '--debug' option. There are three
+  settings possible (debug, info, warning), and the default is 'info'.
+- The scale of the output window can be changed by modifying the GFX_SCALE
+  macro inside the chip8.h header file.
+- SDL can be switched off by setting the SDL flag in chip8.h to 0. This, along
+  with the '--debug' command line flag, will enable the graphics buffer to be
+  printed as an ASCII array, whenever a draw instruction is encountered.
+- Currently, the Key event handler isn't asynchronous. Ideally that would be
+  desirable, but the keyboard response time seemed to be sufficient enough that
+  it was decided to forego the extra complexity. That said, this would be an
+  improvement.
+
+Special thanks to Dmitry Grinberg for helping out with the graphics window
+scaling!
+
+If there are any bugs/improvements, kindly contact me at:
+p<dot>malani<at>gmail<dot>com
